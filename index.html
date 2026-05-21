@@ -430,64 +430,48 @@ textarea{resize:vertical;min-height:60px;}
 .confirm-msg{font-size:12px;color:var(--text2);margin-bottom:20px;line-height:1.5;}
 .confirm-actions{display:flex;gap:10px;justify-content:center;}
 
-/* ═══ FIX CRÍTICO VISTA COSTOS — fuerza layout horizontal ═══ */
-#view-costos > div:nth-of-type(2) {
-  display: flex !important;
-  flex-direction: row !important;
-  flex-wrap: wrap !important;
-  align-items: center !important;
-  gap: 8px !important;
-  padding: 10px 14px !important;
-  background: var(--card) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 11px !important;
-  margin-bottom: 14px !important;
-}
-#view-costos > div:nth-of-type(2) > * {
+/* ═══ FIX DEFINITIVO COSTOS — selectores específicos por ID ═══ */
+#view-costos #costos-filtro-cliente,
+#view-costos #costos-filtro-orden,
+#view-costos #costos-filtro-rango,
+#view-costos #costos-count-label {
+  width: auto !important;
   flex-shrink: 0 !important;
+  flex-grow: 0 !important;
 }
-#view-costos > div:nth-of-type(2) > .card-body {
-  display: flex !important;
-  flex-direction: row !important;
-  flex-wrap: wrap !important;
-  gap: 8px !important;
-  align-items: center !important;
-  width: 100% !important;
-  padding: 0 !important;
+#view-costos #costos-filtro-cliente { 
+  width: 140px !important; 
+  min-width: 140px !important; 
 }
-#view-costos > div:nth-of-type(2) > .card-body > div {
-  display: flex !important;
-  flex-direction: row !important;
-  flex-wrap: wrap !important;
-  gap: 8px !important;
-  align-items: center !important;
-  width: 100% !important;
+#view-costos #costos-filtro-orden { 
+  width: 175px !important; 
+  min-width: 175px !important; 
 }
-#view-costos > div:nth-of-type(2) #costos-count-label {
-  margin-left: auto !important;
+#view-costos #costos-filtro-rango { 
+  width: 180px !important; 
+  min-width: 180px !important; 
 }
-#costos-lista .table-wrap {
-  overflow-x: auto !important;
-  overflow-y: visible !important;
+#view-costos #costos-count-label { 
+  margin-left: auto !important; 
+}
+#costos-lista .table-wrap { 
+  overflow-x: auto !important; 
   max-width: 100% !important;
 }
-#costos-lista table {
-  min-width: 1500px !important;
-  font-size: 11px !important;
+#costos-lista table { 
+  min-width: 1500px !important; 
+  font-size: 11px !important; 
 }
-#costos-lista td, #costos-lista th {
-  white-space: nowrap !important;
-  padding: 6px 8px !important;
+#costos-lista td, #costos-lista th { 
+  white-space: nowrap !important; 
+  padding: 6px 8px !important; 
 }
 #costos-lista td:nth-child(2) {
   white-space: normal !important;
   min-width: 140px !important;
 }
-#costos-lista td:last-child, #costos-lista th:last-child {
-  min-width: 90px !important;
-}
-/* Espacio para el botón flotante */
-body { padding-bottom: 80px !important; }
+/* Espacio para botón flotante */
+body { padding-bottom: 90px !important; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -3727,6 +3711,10 @@ iniciarCargaDatos(usuario.email || "").catch(e => console.warn("init error:", e)
       }
     } catch(e) { console.warn('Token request err:', e); }
   }, 1500);
+  // Crear el botón flotante "Guardar en la nube"
+  setTimeout(() => {
+    if (typeof crearBotonGuardarNube === 'function') crearBotonGuardarNube();
+  }, 800);
 }
 
 function cerrarSesion() {
@@ -3829,31 +3817,17 @@ let _syncEnProgreso = false;
 let _ultimoSync = 0;
 
 // Indicador visual de sync
-// ═══ BOTÓN MANUAL DE GUARDAR EN LA NUBE ═══
 function showSyncStatus(estado) {
-  // Mostrar/ocultar indicador según estado
-  const iconos = { syncing:'🔄', ok:'☁️✅', error:'⚠️', offline:'💾', changes:'📝' };
-  const textos = { 
-    syncing:'Guardando en la nube...', 
-    ok:'¡Guardado en la nube!', 
-    error:'Error al guardar', 
-    offline:'Conectando...',
-    changes:'Cambios sin guardar'
-  };
-  const colores = { syncing:'#0090ff', ok:'#00e5a0', error:'#ff4d6d', offline:'#8a96a8', changes:'#ffb800' };
-  const bgs = { 
-    syncing:'rgba(0,144,255,0.15)', 
-    ok:'rgba(0,229,160,0.15)', 
-    error:'rgba(255,77,109,0.15)', 
-    offline:'rgba(138,150,168,0.1)',
-    changes:'rgba(255,184,0,0.15)'
-  };
-  
+  // estado: 'syncing' | 'ok' | 'error' | 'offline'
+  const iconos = { syncing:'🔄', ok:'☁️✅', error:'⚠️', offline:'💾' };
+  const textos = { syncing:'Guardando en la nube...', ok:'Sincronizado', error:'Sin conexión', offline:'Solo local' };
+  const colores = { syncing:'#0090ff', ok:'#00e5a0', error:'#ff4d6d', offline:'#8a96a8' };
+  const bgs = { syncing:'rgba(0,144,255,0.15)', ok:'rgba(0,229,160,0.15)', error:'rgba(255,77,109,0.15)', offline:'rgba(138,150,168,0.1)' };
   let el = document.getElementById('sync-status');
   if (!el) {
     el = document.createElement('div');
     el.id = 'sync-status';
-    el.style.cssText = 'position:fixed;top:14px;right:14px;font-size:12px;font-family:var(--font-m);font-weight:600;border-radius:20px;padding:6px 14px;z-index:9500;transition:all .3s;display:flex;align-items:center;gap:6px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);';
+    el.style.cssText = 'position:fixed;top:14px;right:14px;font-size:12px;font-family:var(--font-m);font-weight:600;border-radius:20px;padding:6px 14px;z-index:9500;transition:all .3s;cursor:default;display:flex;align-items:center;gap:6px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);';
     document.body.appendChild(el);
   }
   el.innerHTML = `<span style="font-size:14px">${iconos[estado]}</span><span>${textos[estado]}</span>`;
@@ -3863,116 +3837,108 @@ function showSyncStatus(estado) {
   el.style.opacity = '1';
   el.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
   if (estado === 'syncing') {
+    // Animación de pulso
     el.style.animation = 'pulse 1s ease-in-out infinite';
   } else {
     el.style.animation = 'none';
   }
   if (estado === 'ok') {
-    setTimeout(() => { if(el && el.style) { el.style.opacity='0.6'; } }, 2500);
+    setTimeout(() => { if(el && el.style) { el.style.opacity='0.5'; el.style.transform='scale(0.95)'; } }, 2500);
   }
 }
 
-// Variable para saber si hay cambios pendientes de guardar
+// ═══ BOTÓN MANUAL DE GUARDAR EN LA NUBE ═══
 let _hayCambiosSinGuardar = false;
 
-// Crear el botón fijo "Guardar en la nube" + "Cargar desde nube"
 function crearBotonGuardarNube() {
   if (document.getElementById('btn-guardar-nube-fijo')) return;
   
   const contenedor = document.createElement('div');
   contenedor.id = 'btn-guardar-nube-fijo';
-  contenedor.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9400;display:flex;gap:8px;align-items:center;background:rgba(15,19,24,0.95);border:2px solid var(--accent);border-radius:50px;padding:8px 14px;backdrop-filter:blur(12px);box-shadow:0 8px 24px rgba(0,0,0,0.5);';
+  contenedor.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9400;display:flex;gap:8px;align-items:center;background:rgba(15,19,24,0.95);border:2px solid #00e5a0;border-radius:50px;padding:8px 14px;backdrop-filter:blur(12px);box-shadow:0 8px 24px rgba(0,0,0,0.5);';
   
   contenedor.innerHTML = `
-    <button id="btn-guardar-cloud" onclick="guardarManualEnNube()" style="background:var(--accent);color:#000;border:none;border-radius:30px;padding:10px 18px;font-family:var(--font-m);font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .2s">
+    <button id="btn-guardar-cloud" onclick="guardarManualEnNube()" style="background:#00e5a0;color:#000;border:none;border-radius:30px;padding:10px 18px;font-family:'DM Mono',monospace;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .2s">
       <span style="font-size:16px">☁️</span> <span>Guardar en la nube</span>
     </button>
-    <button id="btn-cargar-cloud" onclick="cargarManualDesdeNube()" title="Descargar últimos cambios de otros dispositivos" style="background:var(--bg3);color:var(--text);border:1px solid var(--border2);border-radius:30px;padding:10px 14px;font-family:var(--font-m);font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .2s">
+    <button id="btn-cargar-cloud" onclick="cargarManualDesdeNube()" title="Descargar últimos cambios" style="background:#1a1f26;color:#e6ecf0;border:1px solid #2a3340;border-radius:30px;padding:10px 14px;font-family:'DM Mono',monospace;font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .2s">
       <span style="font-size:16px">🔄</span> <span>Actualizar</span>
     </button>
-    <div id="cambios-indicador" style="display:none;font-family:var(--font-m);font-size:11px;color:var(--warn);font-weight:600;padding:0 6px">●  Sin guardar</div>
+    <div id="cambios-indicador" style="display:none;font-family:'DM Mono',monospace;font-size:11px;color:#ffb800;font-weight:600;padding:0 6px">●  Sin guardar</div>
   `;
   document.body.appendChild(contenedor);
 }
 
-// Marcar que hay cambios sin guardar
 function marcarCambiosSinGuardar() {
   _hayCambiosSinGuardar = true;
   const ind = document.getElementById('cambios-indicador');
   const btn = document.getElementById('btn-guardar-cloud');
   if (ind) ind.style.display = 'block';
   if (btn) {
-    btn.style.background = 'var(--warn)';
+    btn.style.background = '#ffb800';
     btn.style.animation = 'pulse 1.5s ease-in-out infinite';
   }
 }
 
-// Función para guardar manualmente
 async function guardarManualEnNube() {
   if (!sheetsConectado) {
-    // Si no está conectado, primero solicitar token
     try {
-      showSyncStatus('syncing');
+      showSyncStatus && showSyncStatus('syncing');
       if (typeof tokenClient !== 'undefined' && tokenClient) {
         tokenClient.requestAccessToken({prompt: ''});
-        // El callback maneja el resto
-        showNotif('🔐 Autorización Google', 'Acepta el permiso de Google para continuar');
+        showNotif('🔐 Autorización', 'Acepta el permiso de Google');
+        // Esperar 3 segundos y reintentar
+        setTimeout(() => guardarManualEnNube(), 3500);
         return;
       }
     } catch(e) {
-      showSyncStatus('error');
-      showNotif('⚠ Error', 'No se pudo conectar a Google. Verifica tu sesión.', 'warn');
+      showNotif('⚠ Error', 'No se pudo conectar a Google', 'warn');
       return;
     }
   }
   
   try {
-    showSyncStatus('syncing');
+    showSyncStatus && showSyncStatus('syncing');
     await guardarEnSheets();
     _hayCambiosSinGuardar = false;
     const ind = document.getElementById('cambios-indicador');
     const btn = document.getElementById('btn-guardar-cloud');
     if (ind) ind.style.display = 'none';
     if (btn) {
-      btn.style.background = 'var(--accent)';
+      btn.style.background = '#00e5a0';
       btn.style.animation = 'none';
     }
-    showSyncStatus('ok');
-    showNotif('✔ Guardado en la nube', 'Datos disponibles en todos los dispositivos');
+    showSyncStatus && showSyncStatus('ok');
+    showNotif('✔ Guardado', 'Datos en la nube');
   } catch(e) {
-    showSyncStatus('error');
-    showNotif('⚠ Error al guardar', e.message || 'Verifica tu conexión', 'warn');
+    showSyncStatus && showSyncStatus('error');
+    showNotif('⚠ Error', e.message || 'Verifica conexión', 'warn');
   }
 }
 
-// Función para descargar manualmente de la nube
 async function cargarManualDesdeNube() {
   if (!sheetsConectado) {
-    showNotif('⚠ Sin conexión', 'Primero presiona "Guardar en la nube" para autorizar Google', 'warn');
+    showNotif('⚠ Sin conexión', 'Primero presiona "Guardar en la nube" para autorizar', 'warn');
     return;
   }
   
   if (_hayCambiosSinGuardar) {
-    const confirmar = confirm('Tienes cambios sin guardar.\n\nSi continúas, esos cambios se perderán.\n\n¿Continuar con la descarga?');
-    if (!confirmar) return;
+    if (!confirm('Tienes cambios sin guardar.\n\nSi continúas, esos cambios se perderán.\n\n¿Continuar?')) return;
   }
   
   try {
-    showSyncStatus('syncing');
-    
-    // Limpiar timestamp local para forzar descarga
+    showSyncStatus && showSyncStatus('syncing');
     localStorage.setItem('ferpa_ts', '0');
-    _ultimoTsNube = 0;
-    
+    if (typeof _ultimoTsNube !== 'undefined') _ultimoTsNube = 0;
     await cargarDesdeSheets(false);
-    
-    showSyncStatus('ok');
-    showNotif('✔ Actualizado', 'Datos descargados de la nube');
+    showSyncStatus && showSyncStatus('ok');
+    showNotif('✔ Actualizado', 'Datos descargados');
   } catch(e) {
-    showSyncStatus('error');
+    showSyncStatus && showSyncStatus('error');
     showNotif('⚠ Error', 'No se pudo descargar', 'warn');
   }
 }
+
 
 // CARGAR datos desde Google Sheets
 // ══════════════════════════════════════════════════
@@ -4114,10 +4080,20 @@ function extraerEstado() {
 
 // Polling cada 15 segundos para detectar cambios remotos
 function iniciarPollingSync() {
-  // Desactivado: el guardado es manual con el botón "Guardar en la nube"
-  // y la descarga con "Actualizar"
   if (_pollingActivo) return;
   _pollingActivo = true;
+  setInterval(async () => {
+    if (sheetsConectado && document.visibilityState === 'visible' && !_guardandoAhora) {
+      await cargarDesdeSheets(true); // modo silencioso
+    }
+  }, 15000); // cada 15 segundos
+  
+  // También verificar inmediatamente cuando la pestaña vuelve a estar visible
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && sheetsConectado && !_guardandoAhora) {
+      await cargarDesdeSheets(true);
+    }
+  });
 }
 
 // GUARDAR INMEDIATO con debounce para no saturar Sheets
@@ -4325,7 +4301,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   checkMobile();
   window.addEventListener('resize', checkMobile);
-  setInterval(() => { guardarDatos(); }, 45000); // Auto-save solo local, la nube es manual con el botón
+  setInterval(() => { guardarDatos(); guardarEnSheets(); }, 45000);
   
   // ═══ CARGAR DATOS (local o históricos) ═══
   iniciarCargaDatos('');
