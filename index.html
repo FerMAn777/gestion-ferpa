@@ -429,6 +429,63 @@ textarea{resize:vertical;min-height:60px;}
 .confirm-title{font-family:var(--font-d);font-weight:700;font-size:15px;margin-bottom:6px;}
 .confirm-msg{font-size:12px;color:var(--text2);margin-bottom:20px;line-height:1.5;}
 .confirm-actions{display:flex;gap:10px;justify-content:center;}
+
+/* ═══ FIX CRÍTICO VISTA COSTOS ═══ */
+#view-costos > div:nth-of-type(2) {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 10px 14px !important;
+  background: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 11px !important;
+  margin-bottom: 14px !important;
+}
+#view-costos > div:nth-of-type(2) > * {
+  flex-shrink: 0 !important;
+}
+#view-costos > div:nth-of-type(2) > .card-body {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  align-items: center !important;
+  width: 100% !important;
+  padding: 0 !important;
+}
+#view-costos > div:nth-of-type(2) > .card-body > div {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  align-items: center !important;
+  width: 100% !important;
+}
+#view-costos > div:nth-of-type(2) #costos-count-label {
+  margin-left: auto !important;
+}
+#costos-lista .table-wrap {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  max-width: 100% !important;
+}
+#costos-lista table {
+  min-width: 1500px !important;
+  font-size: 11px !important;
+}
+#costos-lista td, #costos-lista th {
+  white-space: nowrap !important;
+  padding: 6px 8px !important;
+}
+#costos-lista td:nth-child(2) {
+  white-space: normal !important;
+  min-width: 140px !important;
+}
+#costos-lista td:last-child, #costos-lista th:last-child {
+  min-width: 90px !important;
+}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -3715,6 +3772,8 @@ async function iniciarCargaDatos(email) {
           showSyncStatus('error');
           return;
         }
+        // CRÍTICO: Aplicar el token a gapi para que las peticiones tengan autorización
+        gapi.client.setToken({access_token: resp.access_token});
         sheetsConectado = true;
         showSyncStatus('syncing');
         console.log('✅ Google Sheets conectado');
