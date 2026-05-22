@@ -3880,26 +3880,145 @@ function marcarCambiosSinGuardar() {
   }
 }
 
-async function guardarManualEnNube() {
-  if (!sheetsConectado) {
-    try {
-      showSyncStatus && showSyncStatus('syncing');
-      if (typeof tokenClient !== 'undefined' && tokenClient) {
-        tokenClient.requestAccessToken({prompt: ''});
-        showNotif('🔐 Autorización', 'Acepta el permiso de Google');
-        // Esperar 3 segundos y reintentar
-        setTimeout(() => guardarManualEnNube(), 3500);
-        return;
-      }
-    } catch(e) {
-      showNotif('⚠ Error', 'No se pudo conectar a Google', 'warn');
+// ═══ Helper: obtener token y aplicarlo a gapi ═══
+let _tokenClientCustom = null;
+
+function obtenerTokenYAplicar() {
+  return new Promise((resolve, reject) => {
+    if (!window.google || !window.google.accounts || !window.google.accounts.oauth2) {
+      reject(new Error('Google Identity Services no cargado'));
       return;
     }
+    
+    // Si ya tenemos token aplicado en gapi, usarlo
+    const tokenActual = gapi?.client?.getToken();
+    if (tokenActual && tokenActual.access_token) {
+      sheetsConectado = true;
+      resolve(tokenActual.access_token);
+      return;
+    }
+    
+    // Crear nuevo tokenClient con callback que APLICA el token a gapi
+    if (!_tokenClientCustom) {
+      _tokenClientCustom = google.accounts.oauth2.initTokenClient({
+        client_id: GCONFIG.CLIENT_ID,
+        scope: GCONFIG.SCOPES,
+        callback: (resp) => {
+          if (resp.error) {
+            _tokenClientCustom._pendingReject && _tokenClientCustom._pendingReject(new Error(resp.error));
+            return;
+          }
+          // CRÍTICO: aplicar el token a gapi para que las peticiones funcionen
+          gapi.client.setToken({access_token: resp.access_token});
+          sheetsConectado = true;
+          console.log('✅ Token aplicado a gapi');
+          _tokenClientCustom._pendingResolve && _tokenClientCustom._pendingResolve(resp.access_token);
+        }
+      });
+    }
+    
+    _tokenClientCustom._pendingResolve = resolve;
+    _tokenClientCustom._pendingReject = reject;
+    
+    // Solicitar token — esto puede mostrar popup la primera vez
+    try {
+      _tokenClientCustom.requestAccessToken({prompt: ''});
+    } catch(e) {
+      reject(e);
+    }
+    
+    // Timeout 30 segundos
+    setTimeout(() => {
+      if (_tokenClientCustom._pendingReject === reject) {
+        reject(new Error('Timeout esperando token'));
+      }
+    }, 30000);
+  });
+}
+
+async function guardarManualEnNube() {
+  try {
+    showSyncStatus && showSyncStatus('syncing');
+    
+    // PASO 1: obtener y aplicar token correctamente
+    await obtenerTokenYAplicar();
+    
+    // PASO 2: guardar en Sheets
+    const ts = Date.now();
+    const data = { ...extraerEstado(), _ts: ts };
+    await gapi.client.sheets.spreadsheets.values.update({
+      spreadsheetId: GCONFIG.SHEET_ID,
+      range: GCONFIG.HOJAS.config + '!A1',
+      valueInputOption: 'RAW',
+      resource: {values: [[JSON.stringify(data)]]}
+    });
+    
+    // PASO 3: actualizar estado local
+    localStorage.setItem('ferpa_ts', ts.toString());
+    if (typeof _ultimoTsNube !== 'undefined') _ultimoTsNube = ts;
+    _hayCambiosSinGuardar = false;
+    
+    // Limpiar indicador visual
+    const ind = document.getElementById('cambios-indicador');
+    const btn = document.getElementById('btn-guardar-cloud');
+    if (ind) ind.style.display = 'none';
+    if (btn) {
+      btn.style.background = '#00e5a0';
+      btn.style.animation = 'none';
+    }
+    
+    showSyncStatus && showSyncStatus('ok');
+    showNotif('✔ Guardado en la nube', 'Datos disponibles para todos los socios');
+  } catch(e) {
+    console.error('Error guardando:', e);
+    showSyncStatus && showSyncStatus('error');
+    showNotif('⚠ Error al guardar', e.message || 'Verifica tu conexión a internet', 'warn');
+  }
+}
+
+async function cargarManualDesdeNube() {
+  if (_hayCambiosSinGuardar) {
+    if (!confirm('Tienes cambios sin guardar.\n\nSi continúas, esos cambios se perderán.\n\n¿Continuar?')) return;
   }
   
   try {
     showSyncStatus && showSyncStatus('syncing');
-    await guardarEnSheets();
+    
+    // PASO 1: obtener y aplicar token
+    await obtenerTokenYAplicar();
+    
+    // PASO 2: leer de Sheets
+    const resp = await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: GCONFIG.SHEET_ID,
+      range: GCONFIG.HOJAS.config + '!A1'
+    });
+    
+    const vals = resp.result.values;
+    if (!vals || !vals[0] || !vals[0][0]) {
+      showSyncStatus && showSyncStatus('ok');
+      showNotif('☁ Sin datos en la nube', 'Guarda primero desde otro dispositivo', 'warn');
+      return;
+    }
+    
+    // PASO 3: aplicar datos
+    const dataNube = JSON.parse(vals[0][0]);
+    
+    // Aplicar todos los datos
+    const props = ['pedidos','movimientos','costos','semanas','abonosSocios','jornadas','plotterCompras','deudas','mamitaMovimientos','clientes','pagosServicio','fondoHistorial'];
+    props.forEach(p => { if (dataNube[p]) S[p] = dataNube[p]; });
+    if (dataNube.socios) Object.assign(S.socios, dataNube.socios);
+    if (dataNube.fondoServicios !== undefined) S.fondoServicios = dataNube.fondoServicios;
+    if (dataNube.fondoAhorro !== undefined) S.fondoAhorro = dataNube.fondoAhorro;
+    if (dataNube.plotterMetros !== undefined) S.plotterMetros = dataNube.plotterMetros;
+    if (dataNube.pedidoCounter) S.pedidoCounter = dataNube.pedidoCounter;
+    if (dataNube.gasolinaAcumulada !== undefined) S.gasolinaAcumulada = dataNube.gasolinaAcumulada;
+    
+    // Guardar en localStorage con el ts de la nube
+    const tsNube = dataNube._ts || Date.now();
+    localStorage.setItem('ferpa_ts', tsNube.toString());
+    localStorage.setItem('ferpa_data_v1', JSON.stringify({...dataNube, _ts: tsNube}));
+    if (typeof _ultimoTsNube !== 'undefined') _ultimoTsNube = tsNube;
+    
     _hayCambiosSinGuardar = false;
     const ind = document.getElementById('cambios-indicador');
     const btn = document.getElementById('btn-guardar-cloud');
@@ -3908,34 +4027,20 @@ async function guardarManualEnNube() {
       btn.style.background = '#00e5a0';
       btn.style.animation = 'none';
     }
+    
+    // Re-renderizar todo
+    if (typeof renderAll === 'function') renderAll();
+    
     showSyncStatus && showSyncStatus('ok');
-    showNotif('✔ Guardado', 'Datos en la nube');
+    const cuandoMs = Date.now() - tsNube;
+    const cuando = cuandoMs < 60000 ? 'ahora mismo' : 
+                   cuandoMs < 3600000 ? `hace ${Math.round(cuandoMs/60000)} min` : 
+                   `hace ${Math.round(cuandoMs/3600000)}h`;
+    showNotif('✔ Actualizado', `Última actualización: ${cuando}`);
   } catch(e) {
+    console.error('Error cargando:', e);
     showSyncStatus && showSyncStatus('error');
-    showNotif('⚠ Error', e.message || 'Verifica conexión', 'warn');
-  }
-}
-
-async function cargarManualDesdeNube() {
-  if (!sheetsConectado) {
-    showNotif('⚠ Sin conexión', 'Primero presiona "Guardar en la nube" para autorizar', 'warn');
-    return;
-  }
-  
-  if (_hayCambiosSinGuardar) {
-    if (!confirm('Tienes cambios sin guardar.\n\nSi continúas, esos cambios se perderán.\n\n¿Continuar?')) return;
-  }
-  
-  try {
-    showSyncStatus && showSyncStatus('syncing');
-    localStorage.setItem('ferpa_ts', '0');
-    if (typeof _ultimoTsNube !== 'undefined') _ultimoTsNube = 0;
-    await cargarDesdeSheets(false);
-    showSyncStatus && showSyncStatus('ok');
-    showNotif('✔ Actualizado', 'Datos descargados');
-  } catch(e) {
-    showSyncStatus && showSyncStatus('error');
-    showNotif('⚠ Error', 'No se pudo descargar', 'warn');
+    showNotif('⚠ Error', e.message || 'No se pudo descargar', 'warn');
   }
 }
 
